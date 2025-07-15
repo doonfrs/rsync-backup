@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# Change to script's directory to ensure we find config and hooks
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+
 CONFIG_FILE="backup.conf"
 
 # === Parse INI-like config ===
