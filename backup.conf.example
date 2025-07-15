@@ -1,0 +1,10 @@
+[remote]
+user = [your_username]
+host = [your_host]
+path = [your_path]
+
+[sources]
+dirs = dir1, dir2, dir3
+
+[excludes]
+patterns = *.gz, *.zip, *.tar, *.bak
