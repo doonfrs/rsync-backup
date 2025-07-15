@@ -31,6 +31,52 @@ DELETE_REMOTE=${DELETE_REMOTE:-false}
 IFS=',' read -ra SOURCE_ARRAY <<<"$SOURCE_DIRS"
 IFS=',' read -ra EXCLUDE_ARRAY <<<"$EXCLUDE_PATTERNS"
 
+# === Display Backup Summary ===
+echo "============================================"
+echo "          RSYNC BACKUP SUMMARY"
+echo "============================================"
+echo
+echo "📡 Remote Destination:"
+echo "   User: $REMOTE_USER"
+echo "   Host: $REMOTE_HOST"
+echo "   Path: $REMOTE_PATH"
+echo "   Full: ${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_PATH}"
+echo
+# Build source directories display with status
+SOURCE_DISPLAY=""
+MISSING_DIRS=""
+for src in "${SOURCE_ARRAY[@]}"; do
+    src=$(echo "$src" | sed 's/^[ \t]*//;s/[ \t]*$//')
+    [[ -z "$src" ]] && continue
+    if [[ -d "$src" ]]; then
+        SOURCE_DISPLAY="${SOURCE_DISPLAY}${src}, "
+    else
+        MISSING_DIRS="${MISSING_DIRS}${src}, "
+    fi
+done
+SOURCE_DISPLAY="${SOURCE_DISPLAY%, }" # Remove trailing comma
+MISSING_DIRS="${MISSING_DIRS%, }"     # Remove trailing comma
+
+echo "📁 Source Directories (${#SOURCE_ARRAY[@]}): $SOURCE_DISPLAY"
+[[ -n "$MISSING_DIRS" ]] && echo "   ❌ Missing: $MISSING_DIRS"
+echo
+
+if [[ ${#EXCLUDE_ARRAY[@]} -gt 0 && -n "${EXCLUDE_ARRAY[0]// /}" ]]; then
+    # Build exclude patterns display
+    EXCLUDE_DISPLAY=""
+    for pattern in "${EXCLUDE_ARRAY[@]}"; do
+        pattern=$(echo "$pattern" | sed 's/^[ \t]*//;s/[ \t]*$//')
+        [[ -n "$pattern" ]] && EXCLUDE_DISPLAY="${EXCLUDE_DISPLAY}${pattern}, "
+    done
+    EXCLUDE_DISPLAY="${EXCLUDE_DISPLAY%, }" # Remove trailing comma
+    echo "🚫 Exclude Patterns (${#EXCLUDE_ARRAY[@]}): $EXCLUDE_DISPLAY"
+    echo
+fi
+echo "⚙️  Delete Mode: $(if [[ "$DELETE_REMOTE" == "true" ]]; then echo "ENABLED ⚠️"; else echo "DISABLED 🔒"; fi)"
+echo
+echo "============================================"
+echo
+
 # === Sync Function ===
 for src in "${SOURCE_ARRAY[@]}"; do
     # Trim leading/trailing spaces
@@ -61,4 +107,15 @@ for src in "${SOURCE_ARRAY[@]}"; do
     "${RSYNC_CMD[@]}" \
         "${RSYNC_EXCLUDES[@]}" \
         "$src" "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_PATH}"
+
+    if [[ $? -eq 0 ]]; then
+        echo "  ✅ Sync completed successfully"
+    else
+        echo "  ❌ Sync failed with exit code $?"
+    fi
+    echo
 done
+
+echo "============================================"
+echo "        BACKUP PROCESS COMPLETED"
+echo "============================================"
