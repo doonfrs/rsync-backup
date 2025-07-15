@@ -32,9 +32,13 @@ IFS=',' read -ra SOURCE_ARRAY <<<"$SOURCE_DIRS"
 IFS=',' read -ra EXCLUDE_ARRAY <<<"$EXCLUDE_PATTERNS"
 
 # === Display Backup Summary ===
+BACKUP_START_TIME=$(date +%s)
+BACKUP_START_DISPLAY=$(date '+%Y-%m-%d %H:%M:%S')
+
 echo "============================================"
 echo "          RSYNC BACKUP SUMMARY"
 echo "============================================"
+echo "🕐 Start Time: $BACKUP_START_DISPLAY"
 echo
 echo "📡 Remote Destination:"
 echo "   User: $REMOTE_USER"
@@ -105,6 +109,11 @@ for src in "${SOURCE_ARRAY[@]}"; do
 
     echo "Syncing: $src"
 
+    # Record start time for this directory
+    DIR_START_TIME=$(date +%s)
+    DIR_START_DISPLAY=$(date '+%H:%M:%S')
+    echo "  🕐 Started at: $DIR_START_DISPLAY"
+
     # Build rsync exclude args
     RSYNC_EXCLUDES=()
     for pattern in "${EXCLUDE_ARRAY[@]}"; do
@@ -128,11 +137,18 @@ for src in "${SOURCE_ARRAY[@]}"; do
         "${RSYNC_EXCLUDES[@]}" \
         "$src" "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_PATH}"
 
+    # Calculate and display timing for this directory
+    DIR_END_TIME=$(date +%s)
+    DIR_END_DISPLAY=$(date '+%H:%M:%S')
+    DIR_DURATION=$((DIR_END_TIME - DIR_START_TIME))
+    DIR_DURATION_FORMATTED=$(printf '%02d:%02d:%02d' $((DIR_DURATION / 3600)) $((DIR_DURATION % 3600 / 60)) $((DIR_DURATION % 60)))
+
     if [[ $? -eq 0 ]]; then
         echo "  ✅ Sync completed successfully"
     else
         echo "  ❌ Sync failed with exit code $?"
     fi
+    echo "  🕐 Finished at: $DIR_END_DISPLAY (Duration: $DIR_DURATION_FORMATTED)"
     echo
 done
 
@@ -155,6 +171,16 @@ if [[ -d "hooks/post-sync" ]]; then
     fi
 fi
 
+# Calculate total backup time
+BACKUP_END_TIME=$(date +%s)
+BACKUP_END_DISPLAY=$(date '+%Y-%m-%d %H:%M:%S')
+TOTAL_DURATION=$((BACKUP_END_TIME - BACKUP_START_TIME))
+TOTAL_DURATION_FORMATTED=$(printf '%02d:%02d:%02d' $((TOTAL_DURATION / 3600)) $((TOTAL_DURATION % 3600 / 60)) $((TOTAL_DURATION % 60)))
+
 echo "============================================"
 echo "        BACKUP PROCESS COMPLETED"
+echo "============================================"
+echo "🕐 Start Time:  $BACKUP_START_DISPLAY"
+echo "🕐 End Time:    $BACKUP_END_DISPLAY"
+echo "⏱️  Total Duration: $TOTAL_DURATION_FORMATTED"
 echo "============================================"
