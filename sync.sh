@@ -77,6 +77,26 @@ echo
 echo "============================================"
 echo
 
+# === Execute Pre-Sync Hooks ===
+if [[ -d "hooks/pre-sync" ]]; then
+    PRE_HOOKS=(hooks/pre-sync/*)
+    if [[ -e "${PRE_HOOKS[0]}" ]]; then
+        echo "🔧 Executing pre-sync hooks..."
+        for hook in "${PRE_HOOKS[@]}"; do
+            if [[ -f "$hook" && -x "$hook" ]]; then
+                echo "   → Running: $(basename "$hook")"
+                if "$hook"; then
+                    echo "   ✅ Hook completed: $(basename "$hook")"
+                else
+                    echo "   ❌ Hook failed: $(basename "$hook") (exit code: $?)"
+                    echo "   ⚠️  Continuing with backup despite hook failure..."
+                fi
+            fi
+        done
+        echo
+    fi
+fi
+
 # === Sync Function ===
 for src in "${SOURCE_ARRAY[@]}"; do
     # Trim leading/trailing spaces
@@ -115,6 +135,25 @@ for src in "${SOURCE_ARRAY[@]}"; do
     fi
     echo
 done
+
+# === Execute Post-Sync Hooks ===
+if [[ -d "hooks/post-sync" ]]; then
+    POST_HOOKS=(hooks/post-sync/*)
+    if [[ -e "${POST_HOOKS[0]}" ]]; then
+        echo "🔧 Executing post-sync hooks..."
+        for hook in "${POST_HOOKS[@]}"; do
+            if [[ -f "$hook" && -x "$hook" ]]; then
+                echo "   → Running: $(basename "$hook")"
+                if "$hook"; then
+                    echo "   ✅ Hook completed: $(basename "$hook")"
+                else
+                    echo "   ❌ Hook failed: $(basename "$hook") (exit code: $?)"
+                fi
+            fi
+        done
+        echo
+    fi
+fi
 
 echo "============================================"
 echo "        BACKUP PROCESS COMPLETED"

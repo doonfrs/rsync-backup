@@ -1,0 +1,17 @@
+#!/bin/bash
+
+# Example post-sync hook: Clean up old backup files
+echo "Cleaning up old backup files..."
+
+# Remove database backups older than 30 days
+find /backup -name "db_backup_*.sql" -mtime +30 -delete 2>/dev/null || true
+find /backup -name "pg_backup_*.sql" -mtime +30 -delete 2>/dev/null || true
+find /backup -name "sqlite_backup_*.db" -mtime +30 -delete 2>/dev/null || true
+
+# Remove old log files
+find /var/log -name "backup_*.log" -mtime +90 -delete 2>/dev/null || true
+
+# Rotate backup directories (keep only last 7 daily backups)
+# find /remote/backup/daily -maxdepth 1 -type d -mtime +7 -exec rm -rf {} \; 2>/dev/null || true
+
+echo "Old backup cleanup completed" 

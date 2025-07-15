@@ -10,6 +10,7 @@ A simple bash script for automated backups using rsync with configurable sources
 - ⚙️ **INI-style configuration** file
 - 🗑️ **Automatic cleanup** of deleted files on remote
 - 🔗 **Safe symbolic link handling**
+- 🔧 **Pre/Post-sync hooks** for custom scripts and automation
 
 ## Quick Start
 
@@ -73,6 +74,48 @@ The `backup.conf` file uses INI-style sections:
 ### `[options]` section
 
 - `delete_remote` - Set to `true` to automatically delete files on remote when they're removed from source (default: `false`)
+
+## Hooks System
+
+The script supports a flexible hooks system for running custom scripts before and after synchronization:
+
+```
+hooks/
+├── pre-sync/          # Scripts run BEFORE sync
+└── post-sync/         # Scripts run AFTER sync
+```
+
+### Quick Hook Setup
+
+1. **Create a hook script:**
+
+   ```bash
+   nano hooks/pre-sync/01-database-backup.sh
+   ```
+
+2. **Make it executable:**
+
+   ```bash
+   chmod +x hooks/pre-sync/01-database-backup.sh
+   ```
+
+3. **Scripts run in alphabetical order** - use numeric prefixes for control
+
+### Common Hook Examples
+
+**Pre-sync hooks:**
+
+- Database backups before syncing data directories
+- Cleanup temporary files to reduce sync size
+- Stop services for consistent file states
+
+**Post-sync hooks:**
+
+- Send notifications (email, Slack, etc.)
+- Clean up old backup files
+- Update monitoring systems
+
+See [hooks/README.md](hooks/README.md) for detailed documentation and examples.
 
 ## Rsync Options Used
 

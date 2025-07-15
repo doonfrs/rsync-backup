@@ -1,0 +1,20 @@
+#!/bin/bash
+
+# Example post-sync hook: Send notification after backup completion
+echo "Sending backup completion notification..."
+
+# Example: Send email notification (requires mailutils)
+# echo "Backup completed successfully at $(date)" | mail -s "Backup Complete" admin@example.com
+
+# Example: Send to Slack webhook
+# curl -X POST -H 'Content-type: application/json' \
+#   --data '{"text":"Backup completed successfully at '$(date)'"}' \
+#   YOUR_SLACK_WEBHOOK_URL
+
+# Example: Log to system log
+logger "rsync-backup: Backup completed successfully"
+
+# Example: Update a status file
+echo "Last backup: $(date)" > /var/log/last-backup.txt
+
+echo "Notification sent" 

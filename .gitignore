@@ -1,1 +1,8 @@
 backup.conf
+
+# Ignore actual hook scripts but keep examples
+hooks/pre-sync/*
+hooks/post-sync/*
+!hooks/pre-sync/*.example
+!hooks/post-sync/*.example
+!hooks/README.md

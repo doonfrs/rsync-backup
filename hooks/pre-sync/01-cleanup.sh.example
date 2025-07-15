@@ -1,0 +1,13 @@
+#!/bin/bash
+
+# Example pre-sync hook: Clean up temporary files before backup
+echo "Cleaning up temporary files..."
+
+# Remove temp files from common locations
+find /tmp -name "*.tmp" -mtime +1 -delete 2>/dev/null || true
+find /var/tmp -name "*.bak" -mtime +7 -delete 2>/dev/null || true
+
+# Clean up logs older than 30 days
+find /var/log -name "*.log.*" -mtime +30 -delete 2>/dev/null || true
+
+echo "Cleanup completed" 

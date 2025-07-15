@@ -1,0 +1,15 @@
+#!/bin/bash
+
+# Example pre-sync hook: Create database backup before syncing
+echo "Creating database backup..."
+
+# Example MySQL backup (uncomment and modify as needed)
+# mysqldump -u backup_user -p'password' database_name > /backup/db_backup_$(date +%Y%m%d_%H%M%S).sql
+
+# Example PostgreSQL backup (uncomment and modify as needed)
+# pg_dump -U backup_user database_name > /backup/pg_backup_$(date +%Y%m%d_%H%M%S).sql
+
+# Example SQLite backup (uncomment and modify as needed)
+# cp /path/to/database.db /backup/sqlite_backup_$(date +%Y%m%d_%H%M%S).db
+
+echo "Database backup completed" 
