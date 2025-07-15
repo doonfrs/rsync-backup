@@ -23,6 +23,10 @@ REMOTE_PATH=$(parse_config remote path)
 SOURCE_DIRS=$(parse_config sources dirs)
 EXCLUDE_PATTERNS=$(parse_config excludes patterns)
 
+# Read delete option (default to false for safety)
+DELETE_REMOTE=$(parse_config options delete_remote)
+DELETE_REMOTE=${DELETE_REMOTE:-false}
+
 # Convert comma-separated strings to arrays
 IFS=',' read -ra SOURCE_ARRAY <<<"$SOURCE_DIRS"
 IFS=',' read -ra EXCLUDE_ARRAY <<<"$EXCLUDE_PATTERNS"
@@ -42,8 +46,19 @@ for src in "${SOURCE_ARRAY[@]}"; do
         RSYNC_EXCLUDES+=("--exclude=$pattern")
     done
 
-    rsync -av --no-compress --delete --safe-links \
+    # Build rsync command with conditional delete options
+    RSYNC_CMD=(rsync -av --no-compress --safe-links)
+
+    # Add delete options if enabled
+    if [[ "$DELETE_REMOTE" == "true" ]]; then
+        RSYNC_CMD+=(--delete --force --delete-excluded)
+        echo "  → Delete mode: enabled (remote files will be deleted if removed from source)"
+    else
+        echo "  → Delete mode: disabled (remote files will be preserved even if removed from source)"
+    fi
+
+    # Execute rsync
+    "${RSYNC_CMD[@]}" \
         "${RSYNC_EXCLUDES[@]}" \
-        --force --delete-excluded \
         "$src" "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_PATH}"
 done

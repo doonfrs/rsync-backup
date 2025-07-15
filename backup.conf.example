@@ -8,3 +8,6 @@ dirs = dir1, dir2, dir3
 
 [excludes]
 patterns = *.gz, *.zip, *.tar, *.bak
+
+[options]
+delete_remote = false

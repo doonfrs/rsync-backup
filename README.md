@@ -40,6 +40,9 @@ A simple bash script for automated backups using rsync with configurable sources
 
    [excludes]
    patterns = *.tmp, *.log, node_modules, .git
+
+   [options]
+   delete_remote = false
    ```
 
 4. **Make the script executable and run**
@@ -67,6 +70,10 @@ The `backup.conf` file uses INI-style sections:
 
 - `patterns` - Comma-separated list of patterns to exclude from backup
 
+### `[options]` section
+
+- `delete_remote` - Set to `true` to automatically delete files on remote when they're removed from source (default: `false`)
+
 ## Rsync Options Used
 
 The script uses these rsync flags for optimal performance:
@@ -74,8 +81,11 @@ The script uses these rsync flags for optimal performance:
 - `-a` - Archive mode (preserves permissions, timestamps, etc.)
 - `-v` - Verbose output
 - `--no-compress` - Skip compression (faster for local networks)
-- `--delete` - Remove files from destination that no longer exist in source
 - `--safe-links` - Ignore symlinks that point outside the tree
+
+**When `delete_remote = true`:**
+
+- `--delete` - Remove files from destination that no longer exist in source
 - `--force` - Force deletion of directories even if not empty
 - `--delete-excluded` - Delete excluded files from destination
 
