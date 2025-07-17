@@ -2,6 +2,10 @@
 
 A simple bash script for automated backups using rsync with configurable sources and excludes.
 
+## 🌟 Please Star the Repo!
+
+If you find this plugin helpful, please consider starring the repository ⭐! Your support helps others discover this tool and motivates further improvements.
+
 ## Features
 
 - 🔄 **Incremental backups** using rsync
