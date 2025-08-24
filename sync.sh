@@ -99,6 +99,8 @@ echo "============================================"
 echo
 
 # === Execute Pre-Sync Hooks ===
+PRE_HOOKS_START_TIME=$(date +%s)
+PRE_HOOKS_DURATION=0
 if [[ -d "hooks/pre-sync" ]]; then
     PRE_HOOKS=(hooks/pre-sync/*)
     if [[ -e "${PRE_HOOKS[0]}" ]]; then
@@ -117,8 +119,11 @@ if [[ -d "hooks/pre-sync" ]]; then
         echo
     fi
 fi
+PRE_HOOKS_END_TIME=$(date +%s)
+PRE_HOOKS_DURATION=$((PRE_HOOKS_END_TIME - PRE_HOOKS_START_TIME))
 
 # === Sync Function ===
+SYNC_START_TIME=$(date +%s)
 for src in "${SOURCE_ARRAY[@]}"; do
     # Trim leading/trailing spaces
     src=$(echo "$src" | sed 's/^[ \t]*//;s/[ \t]*$//')
@@ -193,7 +198,12 @@ for src in "${SOURCE_ARRAY[@]}"; do
     echo
 done
 
+# Capture sync end time right after sync operations complete
+SYNC_END_TIME=$(date +%s)
+
 # === Execute Post-Sync Hooks ===
+POST_HOOKS_START_TIME=$(date +%s)
+POST_HOOKS_DURATION=0
 if [[ -d "hooks/post-sync" ]]; then
     POST_HOOKS=(hooks/post-sync/*)
     if [[ -e "${POST_HOOKS[0]}" ]]; then
@@ -211,8 +221,14 @@ if [[ -d "hooks/post-sync" ]]; then
         echo
     fi
 fi
+POST_HOOKS_END_TIME=$(date +%s)
+POST_HOOKS_DURATION=$((POST_HOOKS_END_TIME - POST_HOOKS_START_TIME))
 
-# Calculate total backup time
+# Calculate sync-only duration (excluding hooks)
+SYNC_DURATION=$((SYNC_END_TIME - SYNC_START_TIME))
+SYNC_DURATION_FORMATTED=$(printf '%02d:%02d:%02d' $((SYNC_DURATION / 3600)) $((SYNC_DURATION % 3600 / 60)) $((SYNC_DURATION % 60)))
+
+# Calculate total backup time (including hooks) - AFTER post-sync hooks complete
 BACKUP_END_TIME=$(date +%s)
 BACKUP_END_DISPLAY=$(date '+%Y-%m-%d %H:%M:%S')
 TOTAL_DURATION=$((BACKUP_END_TIME - BACKUP_START_TIME))
@@ -223,5 +239,16 @@ echo "        BACKUP PROCESS COMPLETED"
 echo "============================================"
 echo "🕐 Start Time:  $BACKUP_START_DISPLAY"
 echo "🕐 End Time:    $BACKUP_END_DISPLAY"
-echo "⏱️  Total Duration: $TOTAL_DURATION_FORMATTED"
+echo
+echo "📊 Time Breakdown:"
+echo "   🔄 Sync Duration: $SYNC_DURATION_FORMATTED"
+if [[ $PRE_HOOKS_DURATION -gt 0 ]]; then
+    PRE_HOOKS_FORMATTED=$(printf '%02d:%02d:%02d' $((PRE_HOOKS_DURATION / 3600)) $((PRE_HOOKS_DURATION % 3600 / 60)) $((PRE_HOOKS_DURATION % 60)))
+    echo "   🔧 Pre-sync hooks: $PRE_HOOKS_FORMATTED"
+fi
+if [[ $POST_HOOKS_DURATION -gt 0 ]]; then
+    POST_HOOKS_FORMATTED=$(printf '%02d:%02d:%02d' $((POST_HOOKS_DURATION / 3600)) $((POST_HOOKS_DURATION % 3600 / 60)) $((POST_HOOKS_DURATION % 60)))
+    echo "   🔧 Post-sync hooks: $POST_HOOKS_FORMATTED"
+fi
+echo "   ⏱️  Total Time: $TOTAL_DURATION_FORMATTED"
 echo "============================================"
