@@ -48,6 +48,7 @@ If you find this plugin helpful, please consider starring the repository ⭐! Yo
 
    [options]
    delete_remote = false
+   verbose = false
    ```
 
 4. **Make the script executable and run**
@@ -78,6 +79,7 @@ The `backup.conf` file uses INI-style sections:
 ### `[options]` section
 
 - `delete_remote` - Set to `true` to automatically delete files on remote when they're removed from source (default: `false`)
+- `verbose` - Set to `true` to enable detailed output including progress bars, transfer statistics, and human-readable file sizes (default: `false`)
 
 ## Hooks System
 
@@ -129,6 +131,13 @@ The script uses these rsync flags for optimal performance:
 - `-v` - Verbose output
 - `--no-compress` - Skip compression (faster for local networks)
 - `--safe-links` - Ignore symlinks that point outside the tree
+
+**When `verbose = true`:**
+
+- `--verbose` - Enhanced verbose output with detailed file transfer information
+- `--progress` - Progress bars for each file during transfer
+- `--stats` - Comprehensive transfer statistics (file count, bytes transferred, speed, etc.)
+- `--human-readable` - File sizes displayed in KB, MB, GB format
 
 **When `delete_remote = true`:**
 

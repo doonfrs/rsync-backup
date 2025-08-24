@@ -31,6 +31,10 @@ EXCLUDE_PATTERNS=$(parse_config excludes patterns)
 DELETE_REMOTE=$(parse_config options delete_remote)
 DELETE_REMOTE=${DELETE_REMOTE:-false}
 
+# Read verbose option (default to false)
+VERBOSE=$(parse_config options verbose)
+VERBOSE=${VERBOSE:-false}
+
 # Convert comma-separated strings to arrays
 IFS=',' read -ra SOURCE_ARRAY <<<"$SOURCE_DIRS"
 IFS=',' read -ra EXCLUDE_ARRAY <<<"$EXCLUDE_PATTERNS"
@@ -81,6 +85,7 @@ if [[ ${#EXCLUDE_ARRAY[@]} -gt 0 && -n "${EXCLUDE_ARRAY[0]// /}" ]]; then
     echo
 fi
 echo "⚙️  Delete Mode: $(if [[ "$DELETE_REMOTE" == "true" ]]; then echo "ENABLED ⚠️"; else echo "DISABLED 🔒"; fi)"
+echo "🔍 Verbose Mode: $(if [[ "$VERBOSE" == "true" ]]; then echo "ENABLED 📊"; else echo "DISABLED 🔇"; fi)"
 echo
 echo "============================================"
 echo
@@ -127,6 +132,14 @@ for src in "${SOURCE_ARRAY[@]}"; do
 
     # Build rsync command with conditional delete options
     RSYNC_CMD=(rsync -av --no-compress --safe-links)
+    
+    # Add verbose options if enabled
+    if [[ "$VERBOSE" == "true" ]]; then
+        RSYNC_CMD+=(--verbose --progress --stats --human-readable)
+        echo "  → Verbose mode: enabled (detailed output and progress)"
+    else
+        echo "  → Verbose mode: disabled (minimal output)"
+    fi
 
     # Add delete options if enabled
     if [[ "$DELETE_REMOTE" == "true" ]]; then

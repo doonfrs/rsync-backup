@@ -11,3 +11,4 @@ patterns = *.gz, *.zip, *.tar, *.bak
 
 [options]
 delete_remote = false
+verbose = false
