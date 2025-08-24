@@ -12,3 +12,5 @@ patterns = *.gz, *.zip, *.tar, *.bak
 [options]
 delete_remote = false
 verbose = false
+progress = true
+show_stats = true

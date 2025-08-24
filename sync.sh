@@ -35,6 +35,12 @@ DELETE_REMOTE=${DELETE_REMOTE:-false}
 VERBOSE=$(parse_config options verbose)
 VERBOSE=${VERBOSE:-false}
 
+# Read progress and stats options (default to true)
+PROGRESS=$(parse_config options progress)
+PROGRESS=${PROGRESS:-true}
+SHOW_STATS=$(parse_config options show_stats)
+SHOW_STATS=${SHOW_STATS:-true}
+
 # Convert comma-separated strings to arrays
 IFS=',' read -ra SOURCE_ARRAY <<<"$SOURCE_DIRS"
 IFS=',' read -ra EXCLUDE_ARRAY <<<"$EXCLUDE_PATTERNS"
@@ -86,6 +92,8 @@ if [[ ${#EXCLUDE_ARRAY[@]} -gt 0 && -n "${EXCLUDE_ARRAY[0]// /}" ]]; then
 fi
 echo "⚙️  Delete Mode: $(if [[ "$DELETE_REMOTE" == "true" ]]; then echo "ENABLED ⚠️"; else echo "DISABLED 🔒"; fi)"
 echo "🔍 Verbose Mode: $(if [[ "$VERBOSE" == "true" ]]; then echo "ENABLED 📊"; else echo "DISABLED 🔇"; fi)"
+echo "📊 Progress Bars: $(if [[ "$PROGRESS" == "true" ]]; then echo "ENABLED 📈"; else echo "DISABLED 📉"; fi)"
+echo "📈 Transfer Stats: $(if [[ "$SHOW_STATS" == "true" ]]; then echo "ENABLED 📊"; else echo "DISABLED 📉"; fi)"
 echo
 echo "============================================"
 echo
@@ -135,10 +143,26 @@ for src in "${SOURCE_ARRAY[@]}"; do
     
     # Add verbose options if enabled
     if [[ "$VERBOSE" == "true" ]]; then
-        RSYNC_CMD+=(--verbose --progress --stats --human-readable)
-        echo "  → Verbose mode: enabled (detailed output and progress)"
+        RSYNC_CMD+=(--verbose --human-readable)
+        echo "  → Verbose mode: enabled (detailed file transfer information)"
     else
         echo "  → Verbose mode: disabled (minimal output)"
+    fi
+    
+    # Add progress bar if enabled
+    if [[ "$PROGRESS" == "true" ]]; then
+        RSYNC_CMD+=(--progress)
+        echo "  → Progress bars: enabled (shows transfer progress for each file)"
+    else
+        echo "  → Progress bars: disabled"
+    fi
+    
+    # Add statistics if enabled
+    if [[ "$SHOW_STATS" == "true" ]]; then
+        RSYNC_CMD+=(--stats)
+        echo "  → Transfer statistics: enabled (shows detailed transfer summary)"
+    else
+        echo "  → Transfer statistics: disabled"
     fi
 
     # Add delete options if enabled

@@ -49,6 +49,8 @@ If you find this plugin helpful, please consider starring the repository ⭐! Yo
    [options]
    delete_remote = false
    verbose = false
+   progress = true
+   show_stats = true
    ```
 
 4. **Make the script executable and run**
@@ -79,7 +81,9 @@ The `backup.conf` file uses INI-style sections:
 ### `[options]` section
 
 - `delete_remote` - Set to `true` to automatically delete files on remote when they're removed from source (default: `false`)
-- `verbose` - Set to `true` to enable detailed output including progress bars, transfer statistics, and human-readable file sizes (default: `false`)
+- `verbose` - Set to `true` to enable detailed output including human-readable file sizes (default: `false`)
+- `progress` - Set to `true` to show progress bars for each file during transfer (default: `true`)
+- `show_stats` - Set to `true` to display comprehensive transfer statistics (default: `true`)
 
 ## Hooks System
 
@@ -135,9 +139,15 @@ The script uses these rsync flags for optimal performance:
 **When `verbose = true`:**
 
 - `--verbose` - Enhanced verbose output with detailed file transfer information
-- `--progress` - Progress bars for each file during transfer
-- `--stats` - Comprehensive transfer statistics (file count, bytes transferred, speed, etc.)
 - `--human-readable` - File sizes displayed in KB, MB, GB format
+
+**When `progress = true`:**
+
+- `--progress` - Progress bars for each file during transfer
+
+**When `show_stats = true`:**
+
+- `--stats` - Comprehensive transfer statistics (file count, bytes transferred, speed, etc.)
 
 **When `delete_remote = true`:**
 
