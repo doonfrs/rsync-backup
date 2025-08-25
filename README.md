@@ -84,6 +84,12 @@ When your hooks cause service interruptions (e.g., stopping database/email serve
    ```
    This runs hooks for consistent file states while rsync only transfers changed/uncommitted files, minimizing downtime.
 
+**Quick setup:** Use the included `sync-smart.sh` wrapper script for automated two-phase syncing:
+```bash
+chmod +x sync-smart.sh
+./sync-smart.sh
+```
+
 ## Configuration
 
 The `backup.conf` file uses INI-style sections:
@@ -201,6 +207,9 @@ Add to crontab for scheduled backups:
 ```bash
 # Run backup every day at 2 AM
 0 2 * * * /path/to/rsync-backup/sync.sh
+
+# Or use smart sync for minimal downtime (recommended for production)
+0 2 * * * /path/to/rsync-backup/sync-smart.sh
 ```
 
 ## License
