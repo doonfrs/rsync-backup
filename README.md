@@ -57,8 +57,32 @@ If you find this plugin helpful, please consider starring the repository ⭐! Yo
 
    ```bash
    chmod +x sync.sh
+   ./sync.sh                    # Run backup with hooks (default)
+   ./sync.sh --no-hooks        # Run backup without hooks
+   ```
+
+## Command Line Options
+
+The script supports the following command line options:
+
+- `--no-hooks` - Skip execution of pre-sync and post-sync hooks
+- `-h, --help` - Show help message and usage information
+
+## Minimizing Service Downtime
+
+When your hooks cause service interruptions (e.g., stopping database/email servers), use a two-phase sync approach:
+
+1. **First run (build rsync cache):**
+   ```bash
+   ./sync.sh --no-hooks
+   ```
+   This syncs files and builds rsync's internal file map/checksums without stopping services.
+
+2. **Second run (with hooks):**
+   ```bash
    ./sync.sh
    ```
+   This runs hooks for consistent file states while rsync only transfers changed/uncommitted files, minimizing downtime.
 
 ## Configuration
 

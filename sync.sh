@@ -6,6 +6,35 @@ cd "$SCRIPT_DIR"
 
 CONFIG_FILE="backup.conf"
 
+# === Parse command line arguments ===
+SKIP_HOOKS=false
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --no-hooks)
+            SKIP_HOOKS=true
+            shift
+            ;;
+        -h|--help)
+            echo "Usage: $0 [OPTIONS]"
+            echo
+            echo "Options:"
+            echo "  --no-hooks    Skip execution of pre-sync and post-sync hooks"
+            echo "  -h, --help    Show this help message"
+            echo
+            echo "Examples:"
+            echo "  $0                    # Run backup with hooks (default)"
+            echo "  $0 --no-hooks        # Run backup without hooks"
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1"
+            echo "Use -h or --help for usage information"
+            exit 1
+            ;;
+    esac
+done
+
 # === Parse INI-like config ===
 function parse_config() {
     local section=$1
@@ -94,6 +123,7 @@ echo "⚙️  Delete Mode: $(if [[ "$DELETE_REMOTE" == "true" ]]; then echo "ENA
 echo "🔍 Verbose Mode: $(if [[ "$VERBOSE" == "true" ]]; then echo "ENABLED 📊"; else echo "DISABLED 🔇"; fi)"
 echo "📊 Progress Bars: $(if [[ "$PROGRESS" == "true" ]]; then echo "ENABLED 📈"; else echo "DISABLED 📉"; fi)"
 echo "📈 Transfer Stats: $(if [[ "$SHOW_STATS" == "true" ]]; then echo "ENABLED 📊"; else echo "DISABLED 📉"; fi)"
+echo "🔧 Hooks: $(if [[ "$SKIP_HOOKS" == "true" ]]; then echo "DISABLED ⏭️"; else echo "ENABLED 🔧"; fi)"
 echo
 echo "============================================"
 echo
@@ -101,22 +131,27 @@ echo
 # === Execute Pre-Sync Hooks ===
 PRE_HOOKS_START_TIME=$(date +%s)
 PRE_HOOKS_DURATION=0
-if [[ -d "hooks/pre-sync" ]]; then
-    PRE_HOOKS=(hooks/pre-sync/*)
-    if [[ -e "${PRE_HOOKS[0]}" ]]; then
-        echo "🔧 Executing pre-sync hooks..."
-        for hook in "${PRE_HOOKS[@]}"; do
-            if [[ -f "$hook" && -x "$hook" ]]; then
-                echo "   → Running: $(basename "$hook")"
-                if "$hook"; then
-                    echo "   ✅ Hook completed: $(basename "$hook")"
-                else
-                    echo "   ❌ Hook failed: $(basename "$hook") (exit code: $?)"
-                    echo "   ⚠️  Continuing with backup despite hook failure..."
+if [[ "$SKIP_HOOKS" == "true" ]]; then
+    echo "⏭️  Skipping pre-sync hooks (--no-hooks flag specified)"
+    echo
+else
+    if [[ -d "hooks/pre-sync" ]]; then
+        PRE_HOOKS=(hooks/pre-sync/*)
+        if [[ -e "${PRE_HOOKS[0]}" ]]; then
+            echo "🔧 Executing pre-sync hooks..."
+            for hook in "${PRE_HOOKS[@]}"; do
+                if [[ -f "$hook" && -x "$hook" ]]; then
+                    echo "   → Running: $(basename "$hook")"
+                    if "$hook"; then
+                        echo "   ✅ Hook completed: $(basename "$hook")"
+                    else
+                        echo "   ❌ Hook failed: $(basename "$hook") (exit code: $?)"
+                        echo "   ⚠️  Continuing with backup despite hook failure..."
+                    fi
                 fi
-            fi
-        done
-        echo
+            done
+            echo
+        fi
     fi
 fi
 PRE_HOOKS_END_TIME=$(date +%s)
@@ -204,21 +239,26 @@ SYNC_END_TIME=$(date +%s)
 # === Execute Post-Sync Hooks ===
 POST_HOOKS_START_TIME=$(date +%s)
 POST_HOOKS_DURATION=0
-if [[ -d "hooks/post-sync" ]]; then
-    POST_HOOKS=(hooks/post-sync/*)
-    if [[ -e "${POST_HOOKS[0]}" ]]; then
-        echo "🔧 Executing post-sync hooks..."
-        for hook in "${POST_HOOKS[@]}"; do
-            if [[ -f "$hook" && -x "$hook" ]]; then
-                echo "   → Running: $(basename "$hook")"
-                if "$hook"; then
-                    echo "   ✅ Hook completed: $(basename "$hook")"
-                else
-                    echo "   ❌ Hook failed: $(basename "$hook") (exit code: $?)"
+if [[ "$SKIP_HOOKS" == "true" ]]; then
+    echo "⏭️  Skipping post-sync hooks (--no-hooks flag specified)"
+    echo
+else
+    if [[ -d "hooks/post-sync" ]]; then
+        POST_HOOKS=(hooks/post-sync/*)
+        if [[ -e "${POST_HOOKS[0]}" ]]; then
+            echo "🔧 Executing post-sync hooks..."
+            for hook in "${POST_HOOKS[@]}"; do
+                if [[ -f "$hook" && -x "$hook" ]]; then
+                    echo "   → Running: $(basename "$hook")"
+                    if "$hook"; then
+                        echo "   ✅ Hook completed: $(basename "$hook")"
+                    else
+                        echo "   ❌ Hook failed: $(basename "$hook") (exit code: $?)"
+                    fi
                 fi
-            fi
-        done
-        echo
+            done
+            echo
+        fi
     fi
 fi
 POST_HOOKS_END_TIME=$(date +%s)
