@@ -14,6 +14,9 @@ delete_remote = false
 verbose = false
 progress = true
 show_stats = true
+# Run rsync with sudo (default: false)
+# Note: Requires the user to have sudo privileges for rsync command
+use_sudo = false
 
 [staging]
 # Enable smart mode for minimal service downtime (default: false)

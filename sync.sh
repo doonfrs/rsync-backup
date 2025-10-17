@@ -119,10 +119,16 @@ function perform_sync() {
             echo "  → Delete mode: disabled"
         fi
 
-        # Execute rsync
-        "${RSYNC_CMD[@]}" \
-            "${RSYNC_EXCLUDES[@]}" \
-            "$src" "$destination"
+        # Execute rsync (with sudo if enabled)
+        if [[ "$USE_SUDO" == "true" ]]; then
+            sudo "${RSYNC_CMD[@]}" \
+                "${RSYNC_EXCLUDES[@]}" \
+                "$src" "$destination"
+        else
+            "${RSYNC_CMD[@]}" \
+                "${RSYNC_EXCLUDES[@]}" \
+                "$src" "$destination"
+        fi
 
         local rsync_exit=$?
 
@@ -171,6 +177,10 @@ PROGRESS=$(parse_config options progress)
 PROGRESS=${PROGRESS:-true}
 SHOW_STATS=$(parse_config options show_stats)
 SHOW_STATS=${SHOW_STATS:-true}
+
+# Read sudo option (default to false)
+USE_SUDO=$(parse_config options use_sudo)
+USE_SUDO=${USE_SUDO:-false}
 
 # Read staging options (default to false)
 LOCAL_STAGING=$(parse_config staging local_staging)
@@ -268,6 +278,7 @@ echo "⚙️  Delete Mode: $(if [[ "$DELETE_REMOTE" == "true" ]]; then echo "ENA
 echo "🔍 Verbose Mode: $(if [[ "$VERBOSE" == "true" ]]; then echo "ENABLED 📊"; else echo "DISABLED 🔇"; fi)"
 echo "📊 Progress Bars: $(if [[ "$PROGRESS" == "true" ]]; then echo "ENABLED 📈"; else echo "DISABLED 📉"; fi)"
 echo "📈 Transfer Stats: $(if [[ "$SHOW_STATS" == "true" ]]; then echo "ENABLED 📊"; else echo "DISABLED 📉"; fi)"
+echo "🔐 Sudo Mode: $(if [[ "$USE_SUDO" == "true" ]]; then echo "ENABLED 🔑"; else echo "DISABLED"; fi)"
 echo "🔧 Hooks: $(if [[ "$SKIP_HOOKS" == "true" ]]; then echo "DISABLED ⏭️"; else echo "ENABLED 🔧"; fi)"
 echo
 echo "============================================"

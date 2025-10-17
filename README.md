@@ -52,6 +52,7 @@ If you find this plugin helpful, please consider starring the repository ⭐! Yo
    verbose = false
    progress = true
    show_stats = true
+   use_sudo = false
    ```
 
 4. **Make the script executable and run**
@@ -134,6 +135,8 @@ The `backup.conf` file uses INI-style sections:
 - `verbose` - Set to `true` to enable detailed output including human-readable file sizes (default: `false`)
 - `progress` - Set to `true` to show progress bars for each file during transfer (default: `true`)
 - `show_stats` - Set to `true` to display comprehensive transfer statistics (default: `true`)
+- `use_sudo` - Set to `true` to run rsync with sudo privileges (default: `false`)
+  - **Important:** Requires the user to have sudo privileges. See [Sudo Mode Setup](#sudo-mode-setup) below
 
 ### `[staging]` section (Smart Mode)
 
@@ -224,6 +227,28 @@ For automated backups without password prompts:
 ssh-keygen -t rsa -b 4096 -C "your_email@example.com"
 ssh-copy-id user@your_server.com
 ```
+
+## Sudo Mode Setup
+
+If you need to run rsync with elevated privileges (e.g., to access restricted directories) without running the entire script as root, you can enable the `use_sudo` option in your `backup.conf`:
+
+```ini
+[options]
+use_sudo = true
+```
+
+### Sudoers Configuration
+
+The user running the script must have sudo privileges for the rsync command. Add the following to your sudoers file using `sudo visudo`:
+
+```bash
+# Allow user to run rsync with sudo without password prompt
+username ALL=(ALL) NOPASSWD: /usr/bin/rsync
+```
+
+Replace `username` with your actual username. This follows the principle of least privilege by granting sudo access only to rsync, not the entire script.
+
+**Security Note:** This is more secure than running the entire script with `sudo ./sync.sh`, as it limits elevated privileges to only the rsync command.
 
 ## Automation
 
