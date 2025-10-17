@@ -1,4 +1,5 @@
 backup.conf
+.backup/
 
 # Ignore actual hook scripts but keep examples
 hooks/pre-sync/*

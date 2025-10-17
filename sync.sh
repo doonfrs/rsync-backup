@@ -48,6 +48,108 @@ function parse_config() {
     }' "$CONFIG_FILE"
 }
 
+# === Perform Sync Function ===
+# Arguments:
+#   $1 - Source array name (pass array name, not the array itself)
+#   $2 - Destination (local path or remote user@host:path)
+#   $3 - Phase description (for display)
+function perform_sync() {
+    local -n sources=$1
+    local destination=$2
+    local phase=$3
+
+    echo "============================================"
+    echo "  $phase"
+    echo "============================================"
+    echo
+
+    local phase_start_time=$(date +%s)
+
+    for src in "${sources[@]}"; do
+        # Trim leading/trailing spaces
+        src=$(echo "$src" | sed 's/^[ \t]*//;s/[ \t]*$//')
+        [[ -z "$src" ]] && continue
+
+        echo "Syncing: $src → $destination"
+
+        # Record start time for this directory
+        local dir_start_time=$(date +%s)
+        local dir_start_display=$(date '+%H:%M:%S')
+        echo "  🕐 Started at: $dir_start_display"
+
+        # Build rsync exclude args
+        RSYNC_EXCLUDES=()
+        for pattern in "${EXCLUDE_ARRAY[@]}"; do
+            pattern=$(echo "$pattern" | sed 's/^[ \t]*//;s/[ \t]*$//')
+            RSYNC_EXCLUDES+=("--exclude=$pattern")
+        done
+
+        # Build rsync command with conditional options
+        RSYNC_CMD=(rsync -av --no-compress --safe-links)
+
+        # Add verbose options if enabled
+        if [[ "$VERBOSE" == "true" ]]; then
+            RSYNC_CMD+=(--verbose --human-readable)
+            echo "  → Verbose mode: enabled"
+        else
+            echo "  → Verbose mode: disabled"
+        fi
+
+        # Add progress bar if enabled
+        if [[ "$PROGRESS" == "true" ]]; then
+            RSYNC_CMD+=(--progress)
+            echo "  → Progress bars: enabled"
+        else
+            echo "  → Progress bars: disabled"
+        fi
+
+        # Add statistics if enabled
+        if [[ "$SHOW_STATS" == "true" ]]; then
+            RSYNC_CMD+=(--stats)
+            echo "  → Transfer statistics: enabled"
+        else
+            echo "  → Transfer statistics: disabled"
+        fi
+
+        # Add delete options if enabled
+        if [[ "$DELETE_REMOTE" == "true" ]]; then
+            RSYNC_CMD+=(--delete --force --delete-excluded)
+            echo "  → Delete mode: enabled"
+        else
+            echo "  → Delete mode: disabled"
+        fi
+
+        # Execute rsync
+        "${RSYNC_CMD[@]}" \
+            "${RSYNC_EXCLUDES[@]}" \
+            "$src" "$destination"
+
+        local rsync_exit=$?
+
+        # Calculate and display timing for this directory
+        local dir_end_time=$(date +%s)
+        local dir_end_display=$(date '+%H:%M:%S')
+        local dir_duration=$((dir_end_time - dir_start_time))
+        local dir_duration_formatted=$(printf '%02d:%02d:%02d' $((dir_duration / 3600)) $((dir_duration % 3600 / 60)) $((dir_duration % 60)))
+
+        if [[ $rsync_exit -eq 0 ]]; then
+            echo "  ✅ Sync completed successfully"
+        else
+            echo "  ❌ Sync failed with exit code $rsync_exit"
+        fi
+        echo "  🕐 Finished at: $dir_end_display (Duration: $dir_duration_formatted)"
+        echo
+    done
+
+    local phase_end_time=$(date +%s)
+    local phase_duration=$((phase_end_time - phase_start_time))
+    local phase_duration_formatted=$(printf '%02d:%02d:%02d' $((phase_duration / 3600)) $((phase_duration % 3600 / 60)) $((phase_duration % 60)))
+    echo "✅ $phase completed in $phase_duration_formatted"
+    echo
+
+    return 0
+}
+
 REMOTE_USER=$(parse_config remote user)
 REMOTE_HOST=$(parse_config remote host)
 REMOTE_PATH=$(parse_config remote path)
@@ -70,9 +172,43 @@ PROGRESS=${PROGRESS:-true}
 SHOW_STATS=$(parse_config options show_stats)
 SHOW_STATS=${SHOW_STATS:-true}
 
+# Read staging options (default to false)
+LOCAL_STAGING=$(parse_config staging local_staging)
+LOCAL_STAGING=${LOCAL_STAGING:-false}
+STAGING_PATH=$(parse_config staging staging_path)
+STAGING_PATH=${STAGING_PATH:-}
+
 # Convert comma-separated strings to arrays
 IFS=',' read -ra SOURCE_ARRAY <<<"$SOURCE_DIRS"
 IFS=',' read -ra EXCLUDE_ARRAY <<<"$EXCLUDE_PATTERNS"
+
+# Build staging sources array for Phase 5 (sync staging to remote)
+STAGING_SOURCES=()
+if [[ "$LOCAL_STAGING" == "true" ]]; then
+    for src in "${SOURCE_ARRAY[@]}"; do
+        src=$(echo "$src" | sed 's/^[ \t]*//;s/[ \t]*$//')
+        [[ -z "$src" ]] && continue
+        # Extract the directory name from the source path
+        dir_name=$(basename "$src")
+        STAGING_SOURCES+=("$STAGING_PATH/$dir_name")
+    done
+fi
+
+# Validate staging configuration
+if [[ "$LOCAL_STAGING" == "true" ]]; then
+    if [[ -z "$STAGING_PATH" ]]; then
+        echo "❌ Error: local_staging is enabled but staging_path is not set in config"
+        exit 1
+    fi
+    # Create staging directory if it doesn't exist
+    if [[ ! -d "$STAGING_PATH" ]]; then
+        echo "📁 Creating staging directory: $STAGING_PATH"
+        mkdir -p "$STAGING_PATH" || {
+            echo "❌ Error: Failed to create staging directory: $STAGING_PATH"
+            exit 1
+        }
+    fi
+fi
 
 # === Display Backup Summary ===
 BACKUP_START_TIME=$(date +%s)
@@ -83,6 +219,15 @@ echo "          RSYNC BACKUP SUMMARY"
 echo "============================================"
 echo "🕐 Start Time: $BACKUP_START_DISPLAY"
 echo
+if [[ "$LOCAL_STAGING" == "true" ]]; then
+    echo "🚀 Mode: SMART BACKUP (Local Staging)"
+    echo "   Staging Path: $STAGING_PATH"
+    echo "   Phase 1: sources → staging (no hooks)"
+    echo "   Phase 2: pre-hooks + sources → staging"
+    echo "   Phase 3: post-hooks"
+    echo "   Phase 4: staging → remote (async)"
+    echo
+fi
 echo "📡 Remote Destination:"
 echo "   User: $REMOTE_USER"
 echo "   Host: $REMOTE_HOST"
@@ -128,141 +273,129 @@ echo
 echo "============================================"
 echo
 
-# === Execute Pre-Sync Hooks ===
-PRE_HOOKS_START_TIME=$(date +%s)
-PRE_HOOKS_DURATION=0
-if [[ "$SKIP_HOOKS" == "true" ]]; then
-    echo "⏭️  Skipping pre-sync hooks (--no-hooks flag specified)"
-    echo
-else
-    if [[ -d "hooks/pre-sync" ]]; then
-        PRE_HOOKS=(hooks/pre-sync/*)
-        if [[ -e "${PRE_HOOKS[0]}" ]]; then
-            echo "🔧 Executing pre-sync hooks..."
-            for hook in "${PRE_HOOKS[@]}"; do
+# === Helper function to execute hooks ===
+function execute_hooks() {
+    local hook_type=$1  # "pre-sync" or "post-sync"
+    local hook_dir="hooks/$hook_type"
+
+    if [[ -d "$hook_dir" ]]; then
+        local hooks=("$hook_dir"/*)
+        if [[ -e "${hooks[0]}" ]]; then
+            echo "🔧 Executing $hook_type hooks..."
+            for hook in "${hooks[@]}"; do
                 if [[ -f "$hook" && -x "$hook" ]]; then
                     echo "   → Running: $(basename "$hook")"
                     if "$hook"; then
                         echo "   ✅ Hook completed: $(basename "$hook")"
                     else
-                        echo "   ❌ Hook failed: $(basename "$hook") (exit code: $?)"
-                        echo "   ⚠️  Continuing with backup despite hook failure..."
+                        local exit_code=$?
+                        echo "   ❌ Hook failed: $(basename "$hook") (exit code: $exit_code)"
+                        if [[ "$hook_type" == "pre-sync" ]]; then
+                            echo "   ⚠️  Continuing with backup despite hook failure..."
+                        fi
                     fi
                 fi
             done
             echo
         fi
     fi
-fi
-PRE_HOOKS_END_TIME=$(date +%s)
-PRE_HOOKS_DURATION=$((PRE_HOOKS_END_TIME - PRE_HOOKS_START_TIME))
+}
 
-# === Sync Function ===
+# === Main Backup Logic ===
 SYNC_START_TIME=$(date +%s)
-for src in "${SOURCE_ARRAY[@]}"; do
-    # Trim leading/trailing spaces
-    src=$(echo "$src" | sed 's/^[ \t]*//;s/[ \t]*$//')
-    [[ -z "$src" ]] && continue
-
-    echo "Syncing: $src"
-
-    # Record start time for this directory
-    DIR_START_TIME=$(date +%s)
-    DIR_START_DISPLAY=$(date '+%H:%M:%S')
-    echo "  🕐 Started at: $DIR_START_DISPLAY"
-
-    # Build rsync exclude args
-    RSYNC_EXCLUDES=()
-    for pattern in "${EXCLUDE_ARRAY[@]}"; do
-        pattern=$(echo "$pattern" | sed 's/^[ \t]*//;s/[ \t]*$//')
-        RSYNC_EXCLUDES+=("--exclude=$pattern")
-    done
-
-    # Build rsync command with conditional delete options
-    RSYNC_CMD=(rsync -av --no-compress --safe-links)
-    
-    # Add verbose options if enabled
-    if [[ "$VERBOSE" == "true" ]]; then
-        RSYNC_CMD+=(--verbose --human-readable)
-        echo "  → Verbose mode: enabled (detailed file transfer information)"
-    else
-        echo "  → Verbose mode: disabled (minimal output)"
-    fi
-    
-    # Add progress bar if enabled
-    if [[ "$PROGRESS" == "true" ]]; then
-        RSYNC_CMD+=(--progress)
-        echo "  → Progress bars: enabled (shows transfer progress for each file)"
-    else
-        echo "  → Progress bars: disabled"
-    fi
-    
-    # Add statistics if enabled
-    if [[ "$SHOW_STATS" == "true" ]]; then
-        RSYNC_CMD+=(--stats)
-        echo "  → Transfer statistics: enabled (shows detailed transfer summary)"
-    else
-        echo "  → Transfer statistics: disabled"
-    fi
-
-    # Add delete options if enabled
-    if [[ "$DELETE_REMOTE" == "true" ]]; then
-        RSYNC_CMD+=(--delete --force --delete-excluded)
-        echo "  → Delete mode: enabled (remote files will be deleted if removed from source)"
-    else
-        echo "  → Delete mode: disabled (remote files will be preserved even if removed from source)"
-    fi
-
-    # Execute rsync
-    "${RSYNC_CMD[@]}" \
-        "${RSYNC_EXCLUDES[@]}" \
-        "$src" "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_PATH}"
-
-    # Calculate and display timing for this directory
-    DIR_END_TIME=$(date +%s)
-    DIR_END_DISPLAY=$(date '+%H:%M:%S')
-    DIR_DURATION=$((DIR_END_TIME - DIR_START_TIME))
-    DIR_DURATION_FORMATTED=$(printf '%02d:%02d:%02d' $((DIR_DURATION / 3600)) $((DIR_DURATION % 3600 / 60)) $((DIR_DURATION % 60)))
-
-    if [[ $? -eq 0 ]]; then
-        echo "  ✅ Sync completed successfully"
-    else
-        echo "  ❌ Sync failed with exit code $?"
-    fi
-    echo "  🕐 Finished at: $DIR_END_DISPLAY (Duration: $DIR_DURATION_FORMATTED)"
-    echo
-done
-
-# Capture sync end time right after sync operations complete
-SYNC_END_TIME=$(date +%s)
-
-# === Execute Post-Sync Hooks ===
-POST_HOOKS_START_TIME=$(date +%s)
+PRE_HOOKS_DURATION=0
 POST_HOOKS_DURATION=0
-if [[ "$SKIP_HOOKS" == "true" ]]; then
-    echo "⏭️  Skipping post-sync hooks (--no-hooks flag specified)"
+PHASE1_DURATION=0
+PHASE2_DURATION=0
+REMOTE_SYNC_DURATION=0
+
+if [[ "$LOCAL_STAGING" == "true" ]]; then
+    # === SMART MODE: Multi-phase backup with local staging ===
+
+    echo "🚀 SMART MODE ENABLED - Using local staging for minimal downtime"
     echo
-else
-    if [[ -d "hooks/post-sync" ]]; then
-        POST_HOOKS=(hooks/post-sync/*)
-        if [[ -e "${POST_HOOKS[0]}" ]]; then
-            echo "🔧 Executing post-sync hooks..."
-            for hook in "${POST_HOOKS[@]}"; do
-                if [[ -f "$hook" && -x "$hook" ]]; then
-                    echo "   → Running: $(basename "$hook")"
-                    if "$hook"; then
-                        echo "   ✅ Hook completed: $(basename "$hook")"
-                    else
-                        echo "   ❌ Hook failed: $(basename "$hook") (exit code: $?)"
-                    fi
-                fi
-            done
-            echo
-        fi
+
+    # Phase 1: Initial sync to staging (no hooks, services stay up)
+    PHASE1_START=$(date +%s)
+    perform_sync SOURCE_ARRAY "$STAGING_PATH" "PHASE 1: Initial sync to local staging (no hooks)"
+    PHASE1_END=$(date +%s)
+    PHASE1_DURATION=$((PHASE1_END - PHASE1_START))
+
+    # Pre-hooks (stop services)
+    if [[ "$SKIP_HOOKS" == "true" ]]; then
+        echo "⏭️  Skipping pre-sync hooks (--no-hooks flag specified)"
+        echo
+    else
+        echo "============================================"
+        echo "  PHASE 2: Pre-Sync Hooks (Stopping Services)"
+        echo "============================================"
+        echo
+        PRE_HOOKS_START_TIME=$(date +%s)
+        execute_hooks "pre-sync"
+        PRE_HOOKS_END_TIME=$(date +%s)
+        PRE_HOOKS_DURATION=$((PRE_HOOKS_END_TIME - PRE_HOOKS_START_TIME))
     fi
+
+    # Phase 2: Final sync to staging (services down, capture committed data)
+    PHASE2_START=$(date +%s)
+    perform_sync SOURCE_ARRAY "$STAGING_PATH" "PHASE 3: Final sync to staging (services down)"
+    PHASE2_END=$(date +%s)
+    PHASE2_DURATION=$((PHASE2_END - PHASE2_START))
+
+    # Post-hooks (start services)
+    if [[ "$SKIP_HOOKS" == "true" ]]; then
+        echo "⏭️  Skipping post-sync hooks (--no-hooks flag specified)"
+        echo
+    else
+        echo "============================================"
+        echo "  PHASE 4: Post-Sync Hooks (Starting Services)"
+        echo "============================================"
+        echo
+        POST_HOOKS_START_TIME=$(date +%s)
+        execute_hooks "post-sync"
+        POST_HOOKS_END_TIME=$(date +%s)
+        POST_HOOKS_DURATION=$((POST_HOOKS_END_TIME - POST_HOOKS_START_TIME))
+    fi
+
+    echo "✅ Services are back up! Remote sync will now proceed independently."
+    echo
+
+    # Phase 3: Sync staging to remote (services already up)
+    REMOTE_START=$(date +%s)
+    perform_sync STAGING_SOURCES "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_PATH}" "PHASE 5: Sync staging to remote"
+    REMOTE_END=$(date +%s)
+    REMOTE_SYNC_DURATION=$((REMOTE_END - REMOTE_START))
+
+else
+    # === NORMAL MODE: Traditional backup ===
+
+    # Pre-hooks
+    PRE_HOOKS_START_TIME=$(date +%s)
+    if [[ "$SKIP_HOOKS" == "true" ]]; then
+        echo "⏭️  Skipping pre-sync hooks (--no-hooks flag specified)"
+        echo
+    else
+        execute_hooks "pre-sync"
+    fi
+    PRE_HOOKS_END_TIME=$(date +%s)
+    PRE_HOOKS_DURATION=$((PRE_HOOKS_END_TIME - PRE_HOOKS_START_TIME))
+
+    # Sync to remote
+    perform_sync SOURCE_ARRAY "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_PATH}" "SYNC: Backing up to remote"
+
+    # Post-hooks
+    POST_HOOKS_START_TIME=$(date +%s)
+    if [[ "$SKIP_HOOKS" == "true" ]]; then
+        echo "⏭️  Skipping post-sync hooks (--no-hooks flag specified)"
+        echo
+    else
+        execute_hooks "post-sync"
+    fi
+    POST_HOOKS_END_TIME=$(date +%s)
+    POST_HOOKS_DURATION=$((POST_HOOKS_END_TIME - POST_HOOKS_START_TIME))
 fi
-POST_HOOKS_END_TIME=$(date +%s)
-POST_HOOKS_DURATION=$((POST_HOOKS_END_TIME - POST_HOOKS_START_TIME))
+
+SYNC_END_TIME=$(date +%s)
 
 # Calculate sync-only duration (excluding hooks)
 SYNC_DURATION=$((SYNC_END_TIME - SYNC_START_TIME))
@@ -280,15 +413,51 @@ echo "============================================"
 echo "🕐 Start Time:  $BACKUP_START_DISPLAY"
 echo "🕐 End Time:    $BACKUP_END_DISPLAY"
 echo
-echo "📊 Time Breakdown:"
-echo "   🔄 Sync Duration: $SYNC_DURATION_FORMATTED"
-if [[ $PRE_HOOKS_DURATION -gt 0 ]]; then
-    PRE_HOOKS_FORMATTED=$(printf '%02d:%02d:%02d' $((PRE_HOOKS_DURATION / 3600)) $((PRE_HOOKS_DURATION % 3600 / 60)) $((PRE_HOOKS_DURATION % 60)))
-    echo "   🔧 Pre-sync hooks: $PRE_HOOKS_FORMATTED"
+
+if [[ "$LOCAL_STAGING" == "true" ]]; then
+    # Smart mode breakdown
+    echo "📊 Smart Mode Time Breakdown:"
+
+    # Calculate staging time (Phases 1-4: all local operations)
+    STAGING_TIME=$((PHASE1_DURATION + PRE_HOOKS_DURATION + PHASE2_DURATION + POST_HOOKS_DURATION))
+    STAGING_TIME_FORMATTED=$(printf '%02d:%02d:%02d' $((STAGING_TIME / 3600)) $((STAGING_TIME % 3600 / 60)) $((STAGING_TIME % 60)))
+    echo "   📦 Local Staging Time: $STAGING_TIME_FORMATTED"
+
+    if [[ $PHASE1_DURATION -gt 0 ]]; then
+        PHASE1_FORMATTED=$(printf '%02d:%02d:%02d' $((PHASE1_DURATION / 3600)) $((PHASE1_DURATION % 3600 / 60)) $((PHASE1_DURATION % 60)))
+        echo "      ├─ Phase 1 (Initial sync): $PHASE1_FORMATTED"
+    fi
+    if [[ $PRE_HOOKS_DURATION -gt 0 ]]; then
+        PRE_HOOKS_FORMATTED=$(printf '%02d:%02d:%02d' $((PRE_HOOKS_DURATION / 3600)) $((PRE_HOOKS_DURATION % 3600 / 60)) $((PRE_HOOKS_DURATION % 60)))
+        echo "      ├─ Phase 2 (Pre-hooks): $PRE_HOOKS_FORMATTED"
+    fi
+    if [[ $PHASE2_DURATION -gt 0 ]]; then
+        PHASE2_FORMATTED=$(printf '%02d:%02d:%02d' $((PHASE2_DURATION / 3600)) $((PHASE2_DURATION % 3600 / 60)) $((PHASE2_DURATION % 60)))
+        echo "      ├─ Phase 3 (Final sync): $PHASE2_FORMATTED"
+    fi
+    if [[ $POST_HOOKS_DURATION -gt 0 ]]; then
+        POST_HOOKS_FORMATTED=$(printf '%02d:%02d:%02d' $((POST_HOOKS_DURATION / 3600)) $((POST_HOOKS_DURATION % 3600 / 60)) $((POST_HOOKS_DURATION % 60)))
+        echo "      └─ Phase 4 (Post-hooks): $POST_HOOKS_FORMATTED"
+    fi
+
+    if [[ $REMOTE_SYNC_DURATION -gt 0 ]]; then
+        REMOTE_FORMATTED=$(printf '%02d:%02d:%02d' $((REMOTE_SYNC_DURATION / 3600)) $((REMOTE_SYNC_DURATION % 3600 / 60)) $((REMOTE_SYNC_DURATION % 60)))
+        echo "   🌐 Remote Backup Time: $REMOTE_FORMATTED"
+    fi
+    echo
+    echo "   ⏱️  Total Time: $TOTAL_DURATION_FORMATTED"
+else
+    # Normal mode breakdown
+    echo "📊 Time Breakdown:"
+    echo "   🔄 Sync Duration: $SYNC_DURATION_FORMATTED"
+    if [[ $PRE_HOOKS_DURATION -gt 0 ]]; then
+        PRE_HOOKS_FORMATTED=$(printf '%02d:%02d:%02d' $((PRE_HOOKS_DURATION / 3600)) $((PRE_HOOKS_DURATION % 3600 / 60)) $((PRE_HOOKS_DURATION % 60)))
+        echo "   🔧 Pre-sync hooks: $PRE_HOOKS_FORMATTED"
+    fi
+    if [[ $POST_HOOKS_DURATION -gt 0 ]]; then
+        POST_HOOKS_FORMATTED=$(printf '%02d:%02d:%02d' $((POST_HOOKS_DURATION / 3600)) $((POST_HOOKS_DURATION % 3600 / 60)) $((POST_HOOKS_DURATION % 60)))
+        echo "   🔧 Post-sync hooks: $POST_HOOKS_FORMATTED"
+    fi
+    echo "   ⏱️  Total Time: $TOTAL_DURATION_FORMATTED"
 fi
-if [[ $POST_HOOKS_DURATION -gt 0 ]]; then
-    POST_HOOKS_FORMATTED=$(printf '%02d:%02d:%02d' $((POST_HOOKS_DURATION / 3600)) $((POST_HOOKS_DURATION % 3600 / 60)) $((POST_HOOKS_DURATION % 60)))
-    echo "   🔧 Post-sync hooks: $POST_HOOKS_FORMATTED"
-fi
-echo "   ⏱️  Total Time: $TOTAL_DURATION_FORMATTED"
 echo "============================================"

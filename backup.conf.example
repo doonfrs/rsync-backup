@@ -14,3 +14,9 @@ delete_remote = false
 verbose = false
 progress = true
 show_stats = true
+
+[staging]
+# Enable smart mode for minimal service downtime (default: false)
+local_staging = false
+# Path to local staging directory (can be relative like .backup or absolute like /home/user/.backup)
+staging_path = .backup
